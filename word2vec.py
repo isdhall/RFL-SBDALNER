@@ -34,20 +34,24 @@ def save_numpy_array(root_dir, wv):
         vocab_file_string = vocab_file.read()
         lines = vocab_file_string.split("\n")[:-1]
         vocab = [re.compile("\s[0-9]{1,}$").split(a)[0] for a in lines]
-        print(f"{len(vocab)} words in vocab.txt || {len(wv.vocab)} words in W2V vocab")
-        print(f"i.e. {len(vocab) - len(wv.vocab)} missing from W2V")
+        # print(f"{len(vocab)} words in vocab.txt || {len(wv.vocab)} words in W2V vocab")
+        print(f"{len(vocab)} words in vocab.txt || {len(wv)} words in W2V vocab")
+        # print(f"i.e. {len(vocab) - len(wv.vocab)} missing from W2V")
+        print(f"i.e. {len(vocab) - len(wv)} missing from W2V")
 
-    word_matrix = np.stack([wv[w] for w in vocab if w in wv.vocab.keys()], axis=0)
+    # word_matrix = np.stack([wv[w] for w in vocab if w in wv.vocab.keys()], axis=0)
+    word_matrix = np.stack([wv[w] for w in vocab if w in wv.key_to_index.keys()], axis=0)
 
     with open(os.path.join(root_dir, "word2vec.vectors.npy"), 'wb') as npy_file:
-
         np.save(npy_file, word_matrix)
 
 
 if __name__ == "__main__":
 
-    root_dir = sys.argv[1]  # Fix this later
+    # root_dir = sys.argv[1]  # Fix this later
     # e.g. "data/NYT_CoType"
+    # root_dir = "data/NYT_CoType"
+    root_dir = "data/conll2003"
 
     if not os.path.exists(os.path.join(root_dir, "corpus.txt")):
         make_corpus()
@@ -56,7 +60,7 @@ if __name__ == "__main__":
     sentences = LineSentence(os.path.join(root_dir, "corpus.txt"))
     print("Made sentences")
 
-    model = Word2Vec(sentences, sg=1, size=300, workers=4, iter=8, negative=8, min_count=1)
+    model = Word2Vec(sentences, sg=1, vector_size=300, workers=4, epochs=8, negative=8, min_count=1)
     print("Made model")
 
     word_vectors = model.wv

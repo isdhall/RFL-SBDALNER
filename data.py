@@ -98,7 +98,7 @@ def prepare_data_set(
                 tokens_idx.append(prepare_sequence(token[0:13] + token[-7:], charset))
 
         tags_idx = [tag_set["O"]] * length_sent
-        if sys.argv[2] == 'relation':
+        if sys.argv[1] == 'relation':
             for relation_mention in sentence["relationMentions"]:
                 if relation_mention["label"] == "None":
                     continue
@@ -114,7 +114,7 @@ def prepare_data_set(
                     num_overlap += 1
                     overlap = True
 
-        elif sys.argv[2] == 'entity':
+        elif sys.argv[1] == 'entity':
             for entity_mention in sentence["entityMentions"]:
                 idx = entity_mention["start"]
                 label = entity_mention["label"]
@@ -131,9 +131,9 @@ def prepare_data_set(
 
 if __name__ == "__main__":
 
-    root_dir = sys.argv[1] # Fix this later
+    # root_dir = sys.argv[1] # Fix this later
     # e.g. "data/NYT_CoType"
-
+    root_dir = "data/NYT_CoType"
     charset = Charset()
     vocab = Vocabulary()
     vocab.load(os.path.join(root_dir, "vocab.txt"))

@@ -28,7 +28,8 @@ class Helper:
         padded_tags, _ = pad_packed_sequence(
             pack_sequence([torch.LongTensor(_) for _ in tags], enforce_sorted=False),
             batch_first=True,
-            padding_value=self.tag_set["O"],
+
+             padding_value=self.tag_set["O"],
         )
 
         padded_tags = nn.functional.one_hot(padded_tags, num_classes=len(self.tag_set)).float()

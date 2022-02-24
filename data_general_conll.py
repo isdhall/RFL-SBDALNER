@@ -94,15 +94,15 @@ if __name__ == '__main__':
     col_names = ["tokens", "POS", "LING", "NER"]
     token_col = "tokens"
     dataset_json_mappings = {
-        '/home/pradmard/repos/data/CONLL/conll2003/eng.testa':
-            '/home/pradmard/repos/data/CONLL/conll2003/test.json',
-        '/home/pradmard/repos/data/CONLL/conll2003/eng.train':
-            '/home/pradmard/repos/data/CONLL/conll2003/train.json'
+        'data/conll2003/test.txt':
+            'data/conll2003/test.json',
+        'data/conll2003/train.txt':
+            'data/conll2003/train.json'
     }
     corpus_files=list(dataset_json_mappings.keys())
     label_col = "NER"
-    vocab_txt = '/home/pradmard/repos/data/CONLL/conll2003/vocab.txt'
-    tags_txt = '/home/pradmard/repos/data/CONLL/conll2003/tag2id.txt'
+    vocab_txt = 'data/conll2003/vocab.txt'
+    tags_txt = 'data/conll2003/tag2id.txt'
 
     logging.info("Started making dataset jsons")
     make_dataset_jsons(

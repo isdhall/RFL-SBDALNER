@@ -15,6 +15,7 @@ from model.ner_model import Model
 from model.utils import Helper
 from training_utils import *
 from utils import Charset, Vocabulary, Index, load, time_display
+from torch.nn.utils.rnn import pad_packed_sequence
 
 
 def random_split(dataset, lengths):
@@ -29,7 +30,8 @@ def random_split(dataset, lengths):
         raise ValueError("Sum of input lengths does not equal the length of the input dataset!")
 
     indices = torch.randperm(sum(lengths)).tolist()
-    return indices, [Subset(dataset, indices[offset - length:offset]) for offset, length in zip(_accumulate(lengths), lengths)]
+    return indices, [Subset(dataset, indices[offset - length:offset]) for offset, length in
+                     zip(_accumulate(lengths), lengths)]
 
 
 def configure_logger():
@@ -80,6 +82,7 @@ def parse_args():
     parser.add_argument(
         "--beta", type=float, help="Weight (should be in [0,1]) that self-supervised losses are multiplied by",
         required=True
+
     )
     parser.add_argument(
         "-alpha", "--alpha", type=float,
@@ -92,7 +95,7 @@ def parse_args():
     )
     parser.add_argument("-B", "--beam_search", type=int, default=1,
                         help="Beam search parameter. B=1 means a greedy search")
-    parser.add_argument("-D", "--data_path", type=str, default="/home/pradmard/repos/data/OntoNotes-5.0/NER/")
+    parser.add_argument("-D", "--data_path", type=str, default="data/conll2003")
     # parser.add_argument(
     #     "--labelthres", type=float, help="proportion of sentence that must be manually labelled before it is used
     #     for training", required = True
@@ -200,11 +203,13 @@ def parse_args():
 
 def make_root_dir(args, indices):
     rn = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-    
+
     root_dir = os.path.join(
         '.',
         f"{'-'.join(sys.argv[1:])}--{rn}".replace("/", "")
     )
+    root_dir = root_dir[3:].replace(":", "-")
+    print("Root directory: ", root_dir)
     os.mkdir(root_dir)
 
     with open(os.path.join(root_dir, "config.txt"), "w") as config_file:
@@ -242,14 +247,12 @@ def train_epoch(model, device, agent, start_time, epoch, optimizer, criterion, a
 
         model.eval()
         sentences, tokens, targets, lengths, self_supervision_mask = [a.to(device) for a in agent.get_batch(idx)]
+
         model.train()
 
         optimizer.zero_grad()
         output = model(sentences, tokens)
         # output in shape [batch_size, length_of_sentence, num_tags (193)]
-
-        # output = pack_padded_sequence(output, lengths.cpu(), batch_first=True).data
-        # targets = pack_padded_sequence(targets, lengths.cpu(), batch_first=True).data
 
         loss = criterion(output, targets, self_supervision_mask)
         loss.backward()
@@ -298,16 +301,18 @@ def evaluate(model, data_sampler, dataset, helper, criterion, device):
             sentences, tokens, targets, lengths = [a.to(device) for a in helper.get_batch(batch)]
 
             output = model(sentences, tokens)
+
             tp, tp_fp, tp_fn = helper.measure(output, targets, lengths)
 
-            tp_total += tp
-            tp_fp_total += tp_fp
-            tp_fn_total += tp_fn
+            tp_total = tp_total + tp
+            tp_fp_total = tp_fp_total + tp_fp
+            tp_fn_total = tp_fn_total + tp_fn
 
             loss = criterion(output, targets, 1)
-            total_loss += loss.item()
+            total_loss = total_loss + loss.item()
 
-            count += len(targets)
+            count = count + len(targets)
+
     if tp_fp_total == 0:
         tp_fp_total = 1
     if tp_fn_total == 0:
@@ -350,15 +355,16 @@ def train_full(model, device, agent, helper, val_set, val_data_groups, original_
 
         logging.info('beginning evaluation')
         val_loss, val_precision, val_recall, val_f1 = \
-            evaluate(model, GroupBatchRandomSampler(val_data_groups, args.batch_size, drop_last=False), val_set,
-                     helper, criterion, device)
+            evaluate(model, GroupBatchRandomSampler(val_data_groups, args.batch_size, drop_last=False), val_set, helper,
+                     criterion, device)
+
         train_loss, train_precision, train_recall, train_f1 = \
             evaluate(model, agent.labelled_set, agent.train_set, helper, criterion, device)
 
         elapsed = time.time() - start_time
         logging.info(
-            "| epoch {:2d} | elapsed time {:s} | train_loss {:5.4f} | val_loss {:5.4f} | prec {:5.4f} "
-            "| rec {:5.4f} | f1 {:5.4f} |".format(
+            "| epoch {:2d} | elapsed time {:s} | train_loss {:5.4f} | val_loss {:5.4f} | val_prec {:5.4f} "
+            "| val_rec {:5.4f} | val_f1 {:5.4f} |".format(
                 epoch, time_display(elapsed), train_loss, val_loss, val_precision, val_recall, val_f1))
 
         # Anneal the learning rate if no improvement has been seen in the validation dataset.
@@ -440,7 +446,6 @@ def log_round(root_dir, round_results, agent, test_loss, test_precision, test_re
 
         i = 0
         for sentence_idx, labelled_idx in agent.index.labelled_idx.items():
-
             num_unlabelled = len(agent.index.unlabelled_idx[sentence_idx])
             num_temp_labelled = len(agent.index.temp_labelled_idx[sentence_idx])
             f.write(str(len(labelled_idx) + num_unlabelled + num_temp_labelled))
@@ -457,7 +462,7 @@ def log_round(root_dir, round_results, agent, test_loss, test_precision, test_re
 def get_measure_type(path):
     if "NYT_CoType" in path:
         return 'relations'
-    elif "OntoNotes-5.0" in path or 'conll' in path:
+    elif "OntoNotes-5.0" in path or 'conll2003' in path:
         return 'entities'
     else:
         raise NotImplementedError(path)
@@ -473,6 +478,7 @@ def load_dataset(path):
     tag_set.load(f"{path}/tag2id.txt")
 
     measure_type = get_measure_type(path)
+    print('measure type: ', measure_type)
 
     tag_set = Index()
     if measure_type == 'relations':
@@ -501,17 +507,25 @@ def active_learning_train(args):
         if not args.cuda:
             logging.warning("you have a CUDA device, so you should probably run with --cuda")
 
-    device = torch.device("cuda" if args.cuda else "cpu")
+    device = torch.device("cpu")
+    # device = torch.device("cuda" if args.cuda else "cpu")
 
     # TODO: make the path a parameter
     helper, word_embeddings, train_set, test_set, tag_set = load_dataset(args.data_path)
+
+    # tag_set = Index()
+    tag_set.load("data/conll2003/tag2id.txt")
+    # print("tag_set", type(tag_set))
 
     # CHANGED FOR DEBUG
     val_size = int(0.01 * len(train_set))
     indices, (train_set, val_set) = random_split(train_set, [len(train_set) - val_size, val_size])
 
-    # [vocab[a] for a in test_data[0][0]]   gives a sentence
-    # [tag_set[a] for a in test_data[0][2]] gives the corresponding tagseq
+    print("Validation set = ", val_set)
+    print("Train set = ", train_set)
+
+    # [vocab[a] for a in test_data[0][0]]   #gives a sentence
+    # [tag_set[a] for a in test_data[0][2]] #gives the corresponding tagseq
 
     val_data_groups = group(val_set, [10, 20, 30, 40, 50, 60])
     test_data_groups = group(test_set, [10, 20, 30, 40, 50, 60])
@@ -528,8 +542,8 @@ def active_learning_train(args):
         args.word_nhid
     ] * args.word_layers
 
-    weight = [args.weight] * len(helper.tag_set)
-    weight[helper.tag_set["O"]] = 1
+    weight = [args.weight] * len(tag_set)
+    weight[tag_set["O"]] = 1
     weight = torch.tensor(weight).to(device)
     criterion = ModifiedKL(weight)
 
@@ -557,7 +571,6 @@ def active_learning_train(args):
 
     round_num = 0
     for _ in agent:
-
         original_lr = args.lr
 
         round_results = train_full(model, device, agent, helper, val_set, val_data_groups, original_lr, criterion, args)
@@ -568,10 +581,9 @@ def active_learning_train(args):
             criterion, device)
 
         logging.info(
-            "| end of training | test loss {:5.4f} | prec {:5.4f} "
-            "| rec {:5.4f} | f1 {:5.4f} |".format(test_loss, test_precision, test_recall, test_f1)
+            "| end of training | test loss {:5.4f} | test_prec {:5.4f} "
+            "| test_rec {:5.4f} | test_f1 {:5.4f} |".format(test_loss, test_precision, test_recall, test_f1)
         )
-
         log_round(root_dir, round_results, agent, test_loss, test_precision, test_recall, test_f1, round_num)
 
         round_num += 1
