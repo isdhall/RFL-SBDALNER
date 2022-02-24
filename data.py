@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
     # root_dir = sys.argv[1] # Fix this later
     # e.g. "data/NYT_CoType"
-    root_dir = "data/NYT_CoType"
+    root_dir = "data/conll2003"
     charset = Charset()
     vocab = Vocabulary()
     vocab.load(os.path.join(root_dir, "vocab.txt"))

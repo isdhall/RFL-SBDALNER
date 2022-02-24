@@ -298,6 +298,10 @@ def evaluate(model, data_sampler, dataset, helper, criterion, device):
     with torch.no_grad():
         for batch_indices in data_sampler:
             batch = [dataset[j] for j in batch_indices]
+            # print("Batch == ", batch)
+            # print("Type of batch == ", type(batch))
+            # print("size batch == ", len(batch))
+            # sys.exit()
             sentences, tokens, targets, lengths = [a.to(device) for a in helper.get_batch(batch)]
 
             output = model(sentences, tokens)
@@ -514,7 +518,7 @@ def active_learning_train(args):
     helper, word_embeddings, train_set, test_set, tag_set = load_dataset(args.data_path)
 
     # tag_set = Index()
-    tag_set.load("data/conll2003/tag2id.txt")
+    tag_set.load("data/conll2003/entity_labels.txt")
     # print("tag_set", type(tag_set))
 
     # CHANGED FOR DEBUG

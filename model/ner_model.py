@@ -258,8 +258,8 @@ class Model(nn.Module):
 
 
 if __name__ == "__main__":
-    word_embeddings = torch.tensor(np.load("data/NYT_CoType/word2vec.vectors.npy"))
-    print(word_embeddings.shape)
+    word_embeddings = torch.tensor(np.load("data/conll2003/word2vec.vectors.npy"))
+    print("word_embeddings shape: ", word_embeddings.shape)
     dropout = (0.5,)
     emb_dropout = 0.25
 
