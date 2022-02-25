@@ -517,16 +517,11 @@ def active_learning_train(args):
     # TODO: make the path a parameter
     helper, word_embeddings, train_set, test_set, tag_set = load_dataset(args.data_path)
 
-    # tag_set = Index()
-    tag_set.load("data/conll2003/entity_labels.txt")
-    # print("tag_set", type(tag_set))
+    #tag_set.load("data/conll2003/entity_labels.txt")
 
     # CHANGED FOR DEBUG
     val_size = int(0.01 * len(train_set))
     indices, (train_set, val_set) = random_split(train_set, [len(train_set) - val_size, val_size])
-
-    print("Validation set = ", val_set)
-    print("Train set = ", train_set)
 
     # [vocab[a] for a in test_data[0][0]]   #gives a sentence
     # [tag_set[a] for a in test_data[0][2]] #gives the corresponding tagseq
@@ -546,8 +541,9 @@ def active_learning_train(args):
         args.word_nhid
     ] * args.word_layers
 
-    weight = [args.weight] * len(tag_set)
-    weight[tag_set["O"]] = 1
+    weight = [args.weight] * len(helper.tag_set)
+    weight[helper.tag_set["O"]] = 1
+    print("weight == ",weight)
     weight = torch.tensor(weight).to(device)
     criterion = ModifiedKL(weight)
 
